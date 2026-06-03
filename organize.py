@@ -1,0 +1,583 @@
+#!/usr/bin/env python3
+"""
+File Organizer - Organize files into categories with interactive CLI
+Features:
+  - Interactive CLI menu for all options
+  - Dry-run mode selection
+  - Recursive mode selection
+  - Protected directory exclusion
+"""
+
+from pathlib import Path
+import shutil
+import argparse
+from collections import defaultdict
+
+
+FILE_TYPES = {
+    "Pictures": [
+        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
+        ".bmp", ".tiff", ".ico", ".heic", ".heif",
+        ".raw", ".cr2", ".nef", ".arw", ".dng",
+        ".psd", ".ai", ".eps", ".indd", ".xcf"
+    ],
+
+    "Videos": [
+        ".mp4", ".mkv", ".mov", ".avi", ".webm",
+        ".flv", ".wmv", ".mpeg", ".mpg",
+        ".3gp", ".m4v", ".ts", ".vob", ".ogv"
+    ],
+
+    "Music": [
+        ".mp3", ".wav", ".flac", ".ogg",
+        ".aac", ".m4a", ".wma", ".alac",
+        ".aiff", ".mid", ".midi", ".opus"
+    ],
+
+    "Documents": [
+        ".pdf", ".doc", ".docx", ".txt",
+        ".ppt", ".pptx", ".xls", ".xlsx",
+        ".csv", ".md", ".rtf", ".odt",
+        ".ods", ".odp", ".tex", ".epub",
+        ".pages"
+    ],
+
+    "Archives": [
+        ".zip", ".rar", ".7z", ".tar",
+        ".gz", ".bz2", ".xz", ".iso",
+        ".cab", ".tgz"
+    ],
+
+    "Code": [
+        ".py", ".js", ".ts", ".jsx", ".tsx",
+        ".cpp", ".c", ".h", ".hpp",
+        ".java", ".kt", ".rs", ".go",
+        ".php", ".rb", ".swift",
+        ".cs", ".sh", ".bat", ".ps1",
+        ".html", ".css", ".scss",
+        ".sql", ".json", ".xml",
+        ".yaml", ".yml",
+        ".vue", ".dart", ".lua"
+    ],
+
+    "Databases": [
+        ".db", ".sqlite", ".sqlite3",
+        ".mdb", ".accdb", ".sqlitedb"
+    ],
+
+    "Executables": [
+        ".exe", ".msi", ".apk", ".aab",
+        ".app", ".bin", ".dmg",
+        ".run", ".deb", ".rpm",
+        ".jar"
+    ],
+
+    "Fonts": [
+        ".ttf", ".otf", ".woff", ".woff2"
+    ],
+
+    "3D Models": [
+        ".obj", ".fbx", ".stl",
+        ".blend", ".dae", ".3ds",
+        ".gltf", ".glb",
+        ".step", ".iges"
+    ],
+
+    "Config Files": [
+        ".ini", ".cfg", ".conf",
+        ".env", ".toml",
+        ".properties"
+    ],
+
+    "Logs": [
+        ".log"
+    ],
+
+    "Scripts": [
+        ".command", ".zsh", ".fish"
+    ],
+
+    "Disk Images": [
+        ".iso", ".img", ".dmg"
+    ],
+
+    "Data Science": [
+        ".ipynb", ".parquet",
+        ".feather", ".h5", ".pkl"
+    ],
+
+    "GIS & Maps": [
+        ".shp", ".geojson", ".kml"
+    ]
+}
+
+SYSTEM_PROTECTED_DIRS = {
+    ".git", ".svn", ".hg", "node_modules", ".npm",
+    ".venv", "venv", ".env", "__pycache__",
+    ".cache", ".local", ".config", ".aws",
+    "snap", "flatpak"
+}
+
+
+def get_file_category(extension: str) -> str:
+    """Get file category based on extension."""
+    extension = extension.lower()
+    for category, extensions in FILE_TYPES.items():
+        if extension in extensions:
+            return category
+    return "Others"
+
+
+def format_size(size: int) -> str:
+    """Format file size in human-readable format."""
+    units = ["B", "KB", "MB", "GB", "TB"]
+    for unit in units:
+        if size < 1024:
+            return f"{size:.2f} {unit}"
+        size /= 1024
+    return f"{size:.2f} PB"
+
+
+def get_unique_destination(destination: Path) -> Path:
+    """Get unique destination path if file already exists."""
+    if not destination.exists():
+        return destination
+
+    counter = 1
+    while True:
+        new_name = f"{destination.stem}_{counter}{destination.suffix}"
+        new_destination = destination.parent / new_name
+        if not new_destination.exists():
+            return new_destination
+        counter += 1
+
+
+def should_skip(item: Path, organized_folders: set) -> bool:
+    """Skip dotfiles, files in organized folders, and protected directories."""
+    if item.name.startswith("."):
+        return True
+
+    for parent in item.parents:
+        if parent.name in organized_folders:
+            return True
+
+    return False
+
+
+def is_protected_directory(path: Path, restricted_dirs: set) -> bool:
+    """Check if a directory is protected (system config or user-restricted)."""
+    if path.name in SYSTEM_PROTECTED_DIRS:
+        return True
+    if path.name in restricted_dirs:
+        return True
+    return False
+
+
+def collect_files_by_category(
+    target_folder: Path,
+    recursive: bool,
+    organized_folders: set,
+    restricted_dirs: set
+) -> dict:
+    """Collect files grouped by category for permission prompt."""
+    files_by_category = defaultdict(list)
+
+    if recursive:
+        items = target_folder.rglob("*")
+    else:
+        items = target_folder.iterdir()
+
+    for item in items:
+        try:
+            if not item.is_file():
+                continue
+
+            if should_skip(item, organized_folders):
+                continue
+
+            if any(is_protected_directory(p, restricted_dirs) for p in item.parents):
+                continue
+
+            extension = item.suffix.lower()
+            category = get_file_category(extension)
+            rel_path = item.relative_to(target_folder)
+            files_by_category[category].append((item, str(rel_path)))
+
+        except Exception:
+            pass
+
+    return files_by_category
+
+
+def prompt_for_permission(files_by_category: dict, dry_run: bool = False) -> set:
+    """Ask user for permission to organize file types."""
+    if not files_by_category:
+        print("\n[WARNING] No files to organize found.")
+        return set()
+
+    print("\n" + "="*70)
+    print("FILE ORGANIZATION SUMMARY")
+    print("="*70)
+
+    total_files = 0
+    for category in sorted(files_by_category.keys()):
+        files = files_by_category[category]
+        total_files += len(files)
+        print(f"\n[{category}]: ({len(files)} files)")
+        for _, rel_path in files[:3]:
+            print(f"   |-- {rel_path}")
+        if len(files) > 3:
+            print(f"   |-- ... and {len(files) - 3} more files")
+
+    print("\n" + "="*70)
+    print(f"Total: {total_files} files to organize")
+    
+    if dry_run:
+        print("[DRY-RUN MODE] Preview only, no files will be moved")
+    print("="*70)
+
+    while True:
+        response = input("\nProceed with organization? (yes/no): ").strip().lower()
+        if response in ["yes", "y"]:
+            return set(files_by_category.keys())
+        elif response in ["no", "n"]:
+            print("[CANCELLED] Operation cancelled.")
+            return set()
+        else:
+            print("[WARNING] Please enter 'yes' or 'no'.")
+
+
+def prompt_for_restricted_dirs() -> set:
+    """Ask user for directories to exclude from organization."""
+    print("\n" + "="*70)
+    print("RESTRICT DIRECTORIES")
+    print("="*70)
+    print("Enter directory names to exclude from organization.")
+    print("Separate multiple directories with commas (or press Enter to skip).")
+    print("Example: 'My Projects, Important Docs, Work'")
+
+    response = input("\nRestricted directories: ").strip()
+
+    if not response:
+        return set()
+
+    restricted = {d.strip() for d in response.split(",")}
+    restricted = {d for d in restricted if d}
+
+    if restricted:
+        print(f"[OK] Restricted directories: {', '.join(restricted)}")
+
+    return restricted
+
+
+def prompt_for_dry_run() -> bool:
+    """Ask user if they want to run in dry-run mode."""
+    print("\n" + "="*70)
+    print("DRY-RUN MODE")
+    print("="*70)
+    print("In dry-run mode, the script will preview changes without")
+    print("actually moving any files. This is useful for testing.")
+    
+    while True:
+        response = input("\nRun in dry-run mode? (yes/no): ").strip().lower()
+        if response in ["yes", "y"]:
+            print("[OK] Dry-run mode ENABLED - No files will be moved")
+            return True
+        elif response in ["no", "n"]:
+            print("[OK] Dry-run mode DISABLED - Files will be moved")
+            return False
+        else:
+            print("[WARNING] Please enter 'yes' or 'no'.")
+
+
+def prompt_for_recursive() -> bool:
+    """Ask user if they want recursive mode."""
+    print("\n" + "="*70)
+    print("RECURSIVE MODE")
+    print("="*70)
+    print("Non-recursive: Organize only files in the target folder")
+    print("Recursive: Organize files in all subfolders")
+    
+    while True:
+        response = input("\nOrganize recursively (all subfolders)? (yes/no): ").strip().lower()
+        if response in ["yes", "y"]:
+            print("[OK] Recursive mode ENABLED - All subfolders will be organized")
+            return True
+        elif response in ["no", "n"]:
+            print("[OK] Recursive mode DISABLED - Only target folder will be organized")
+            return False
+        else:
+            print("[WARNING] Please enter 'yes' or 'no'.")
+
+
+def organize_folder(
+    target_folder: Path,
+    recursive: bool = False,
+    dry_run: bool = False,
+    categories_to_organize: set = None,
+    restricted_dirs: set = None
+):
+    """Organize files into category folders."""
+    if not target_folder.exists():
+        print(f"\n[ERROR] Folder not found: {target_folder}")
+        return
+
+    if restricted_dirs is None:
+        restricted_dirs = set()
+
+    if categories_to_organize is None:
+        categories_to_organize = set(FILE_TYPES.keys())
+
+    organized_folders = set(FILE_TYPES.keys())
+
+    status = "Scanning" if dry_run else "Processing"
+    print(f"\n[{status}]: {target_folder}")
+    if recursive:
+        print("[MODE] RECURSIVE (organizing in all subdirectories)")
+    if dry_run:
+        print("[MODE] DRY-RUN (preview only, no files will be moved)")
+
+    moved_count = 0
+    error_count = 0
+    skipped_count = 0
+
+    if recursive:
+        items = list(target_folder.rglob("*"))
+        items_to_process = []
+
+        for item in items:
+            try:
+                if not item.is_file():
+                    continue
+                if should_skip(item, organized_folders):
+                    skipped_count += 1
+                    continue
+                if any(is_protected_directory(p, restricted_dirs) for p in item.parents):
+                    skipped_count += 1
+                    continue
+                items_to_process.append(item)
+            except Exception:
+                pass
+
+        by_parent = defaultdict(list)
+        for item in items_to_process:
+            by_parent[item.parent].append(item)
+
+        for parent_dir, files in by_parent.items():
+            for item in files:
+                try:
+                    extension = item.suffix.lower()
+                    category = get_file_category(extension)
+
+                    if category not in categories_to_organize:
+                        skipped_count += 1
+                        continue
+
+                    destination_folder = parent_dir / category
+                    destination_file = destination_folder / item.name
+                    destination_file = get_unique_destination(destination_file)
+
+                    size = format_size(item.stat().st_size)
+
+                    if dry_run:
+                        rel_path = item.relative_to(target_folder)
+                        print(
+                            f"[DRY-RUN] {rel_path}\n"
+                            f"          -> {category}/ ({size})"
+                        )
+                        moved_count += 1
+                    else:
+                        destination_folder.mkdir(exist_ok=True, parents=True)
+                        shutil.move(str(item), str(destination_file))
+                        print(f"[OK] {item.name} -> {category}/ ({size})")
+                        moved_count += 1
+
+                except Exception as e:
+                    print(f"[ERROR] {item.name} | {str(e)}")
+                    error_count += 1
+
+    else:
+        items = target_folder.iterdir()
+
+        for item in items:
+            try:
+                if not item.is_file():
+                    continue
+
+                if should_skip(item, organized_folders):
+                    skipped_count += 1
+                    continue
+
+                if any(is_protected_directory(p, restricted_dirs) for p in item.parents):
+                    skipped_count += 1
+                    continue
+
+                extension = item.suffix.lower()
+                category = get_file_category(extension)
+
+                if category not in categories_to_organize:
+                    skipped_count += 1
+                    continue
+
+                destination_folder = target_folder / category
+                destination_file = destination_folder / item.name
+                destination_file = get_unique_destination(destination_file)
+
+                size = format_size(item.stat().st_size)
+
+                if dry_run:
+                    print(
+                        f"[DRY-RUN] {item.name}\n"
+                        f"          -> {category}/ ({size})"
+                    )
+                    moved_count += 1
+                else:
+                    destination_folder.mkdir(exist_ok=True)
+                    shutil.move(str(item), str(destination_file))
+                    print(f"[OK] {item.name} -> {category}/ ({size})")
+                    moved_count += 1
+
+            except Exception as e:
+                print(f"[ERROR] {item.name} | {str(e)}")
+                error_count += 1
+
+    print("\n" + "="*70)
+    print("SUMMARY")
+    print("="*70)
+    action = "Would move" if dry_run else "Moved"
+    print(f"[OK] {action}: {moved_count} files")
+    if skipped_count > 0:
+        print(f"[SKIPPED] Skipped: {skipped_count} files")
+    if error_count > 0:
+        print(f"[ERROR] Errors: {error_count}")
+    if dry_run:
+        print("\n[INFO] This was a DRY-RUN. Re-run with dry-run disabled to actually organize files.")
+    print("="*70)
+
+
+def parse_arguments():
+    """Parse command line arguments."""
+    parser = argparse.ArgumentParser(
+        description="File Organizer - Automatically organize files into categories",
+        formatter_class=argparse.RawDescriptionHelpFormatter
+    )
+
+    parser.add_argument(
+        "--path",
+        type=str,
+        default=None,
+        help="Folder path to organize (interactive if not provided)"
+    )
+
+    parser.add_argument(
+        "--skip-menus",
+        action="store_true",
+        help="Skip interactive menus and use defaults"
+    )
+
+    return parser.parse_args()
+
+
+def print_header():
+    """Print application header."""
+    print("\n" + "="*70)
+    print("FILE ORGANIZER - INTERACTIVE MODE")
+    print("="*70)
+
+
+def get_target_path() -> Path:
+    """Get target path from user input."""
+    while True:
+        default_path = Path.home() / "Downloads"
+        prompt = f"\nEnter folder path (or press Enter for {default_path}): "
+        path_input = input(prompt).strip()
+
+        if not path_input:
+            target = default_path
+        else:
+            target = Path(path_input).expanduser()
+
+        if target.exists() and target.is_dir():
+            print(f"[OK] Target folder selected: {target}")
+            return target
+        else:
+            print(f"[ERROR] Path does not exist or is not a directory: {target}")
+
+
+def display_configuration(target_folder: Path, dry_run: bool, recursive: bool, restricted_dirs: set):
+    """Display the current configuration."""
+    print("\n" + "="*70)
+    print("CONFIGURATION SUMMARY")
+    print("="*70)
+    print(f"Target Folder: {target_folder}")
+    recursive_status = "ENABLED" if recursive else "DISABLED"
+    dry_run_status = "ENABLED" if dry_run else "DISABLED"
+    print(f"Recursive Mode: {recursive_status}")
+    print(f"Dry-Run Mode: {dry_run_status}")
+    if restricted_dirs:
+        print(f"Restricted Dirs: {', '.join(restricted_dirs)}")
+    else:
+        print(f"Restricted Dirs: None")
+    print("="*70)
+
+
+def main():
+    """Main entry point with interactive CLI."""
+    print_header()
+
+    args = parse_arguments()
+
+    # Step 1: Get target folder
+    if args.path:
+        target_folder = Path(args.path).expanduser()
+        if not target_folder.exists() or not target_folder.is_dir():
+            print(f"\n[ERROR] Invalid path: {target_folder}")
+            return
+    else:
+        target_folder = get_target_path()
+
+    # Step 2: Ask for dry-run mode
+    dry_run = prompt_for_dry_run()
+
+    # Step 3: Ask for recursive mode
+    recursive = prompt_for_recursive()
+
+    # Step 4: Ask for restricted directories
+    print("\n" + "="*70)
+    restrict_prompt = input("Do you want to restrict any directories? (yes/no): ").strip().lower()
+    restricted_dirs = set()
+    if restrict_prompt in ["yes", "y"]:
+        restricted_dirs = prompt_for_restricted_dirs()
+
+    # Step 5: Show configuration summary
+    display_configuration(target_folder, dry_run, recursive, restricted_dirs)
+
+    # Step 6: Collect and preview files
+    files_by_category = collect_files_by_category(
+        target_folder,
+        recursive,
+        set(FILE_TYPES.keys()),
+        restricted_dirs
+    )
+
+    # Step 7: Ask for final confirmation
+    categories_to_organize = prompt_for_permission(files_by_category, dry_run=dry_run)
+
+    if not categories_to_organize:
+        print("\n[CANCELLED] Operation cancelled.")
+        return
+
+    # Step 8: Organize files
+    organize_folder(
+        target_folder=target_folder,
+        recursive=recursive,
+        dry_run=dry_run,
+        categories_to_organize=categories_to_organize,
+        restricted_dirs=restricted_dirs
+    )
+
+    print()
+
+
+if __name__ == "__main__":
+    main()
