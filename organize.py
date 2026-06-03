@@ -213,7 +213,7 @@ def collect_files_by_category(
 def prompt_for_permission(files_by_category: dict, dry_run: bool = False) -> set:
     """Ask user for permission to organize file types."""
     if not files_by_category:
-        print("\n⚠️  No files to organize found.")
+        print("\n  No files to organize found.")
         return set()
 
     print("\n" + "="*70)
@@ -224,14 +224,14 @@ def prompt_for_permission(files_by_category: dict, dry_run: bool = False) -> set
     for category in sorted(files_by_category.keys()):
         files = files_by_category[category]
         total_files += len(files)
-        print(f"\n📁 {category}: ({len(files)} files)")
+        print(f"\n {category}: ({len(files)} files)")
         for _, rel_path in files[:3]:
             print(f"   └─ {rel_path}")
         if len(files) > 3:
             print(f"   └─ ... and {len(files) - 3} more files")
 
     print("\n" + "="*70)
-    print(f"📊 Total: {total_files} files to organize")
+    print(f" Total: {total_files} files to organize")
     
     if dry_run:
         print("🔍 Mode: DRY-RUN (preview only, no files will be moved)")
@@ -242,10 +242,10 @@ def prompt_for_permission(files_by_category: dict, dry_run: bool = False) -> set
         if response in ["yes", "y"]:
             return set(files_by_category.keys())
         elif response in ["no", "n"]:
-            print("❌ Operation cancelled.")
+            print(" Operation cancelled.")
             return set()
         else:
-            print("⚠️  Please enter 'yes' or 'no'.")
+            print("  Please enter 'yes' or 'no'.")
 
 
 def prompt_for_restricted_dirs() -> set:
@@ -280,7 +280,7 @@ def organize_folder(
 ):
     """Organize files into category folders."""
     if not target_folder.exists():
-        print(f"\n❌ Error: Folder not found: {target_folder}")
+        print(f"\n Error: Folder not found: {target_folder}")
         return
 
     if restricted_dirs is None:
@@ -291,11 +291,11 @@ def organize_folder(
 
     organized_folders = set(FILE_TYPES.keys())
 
-    print(f"\n{'🔍 Scanning' if dry_run else '📋 Processing'}: {target_folder}")
+    print(f"\n{' Scanning' if dry_run else ' Processing'}: {target_folder}")
     if recursive:
-        print("🔁 Mode: RECURSIVE (organizing in all subdirectories)")
+        print(" Mode: RECURSIVE (organizing in all subdirectories)")
     if dry_run:
-        print("🔍 Mode: DRY-RUN (preview only, no files will be moved)")
+        print(" Mode: DRY-RUN (preview only, no files will be moved)")
 
     moved_count = 0
     error_count = 0
@@ -353,7 +353,7 @@ def organize_folder(
                         moved_count += 1
 
                 except Exception as e:
-                    print(f"❌ ERROR: {item.name} | {str(e)}")
+                    print(f" ERROR: {item.name} | {str(e)}")
                     error_count += 1
 
     else:
@@ -398,7 +398,7 @@ def organize_folder(
                     moved_count += 1
 
             except Exception as e:
-                print(f"❌ ERROR: {item.name} | {str(e)}")
+                print(f" ERROR: {item.name} | {str(e)}")
                 error_count += 1
 
     print("\n" + "="*70)
@@ -408,9 +408,9 @@ def organize_folder(
     if skipped_count > 0:
         print(f"⊘ Skipped: {skipped_count} files")
     if error_count > 0:
-        print(f"❌ Errors: {error_count}")
+        print(f" Errors: {error_count}")
     if dry_run:
-        print("\n💡 This was a DRY-RUN. Re-run without --dry-run to actually organize files.")
+        print("\n This was a DRY-RUN. Re-run without --dry-run to actually organize files.")
     print("="*70)
 
 
@@ -457,13 +457,13 @@ Examples:
     parser.add_argument(
         "--recursive", "-r",
         action="store_true",
-        help="🔁 Recursively organize files in all subdirectories"
+        help=" Recursively organize files in all subdirectories"
     )
 
     parser.add_argument(
         "--dry-run", "-d",
         action="store_true",
-        help="🔍 Preview changes without moving files"
+        help=" Preview changes without moving files"
     )
 
     parser.add_argument(
@@ -485,7 +485,7 @@ Examples:
 def print_header():
     """Print application header."""
     print("\n" + "="*70)
-    print("📁 FILE ORGANIZER")
+    print(" FILE ORGANIZER")
     print("="*70)
 
 
@@ -504,7 +504,7 @@ def get_target_path() -> Path:
         if target.exists() and target.is_dir():
             return target
         else:
-            print(f"❌ Error: Path does not exist or is not a directory: {target}")
+            print(f" Error: Path does not exist or is not a directory: {target}")
 
 
 def main():
@@ -529,7 +529,7 @@ def main():
     if args.restrict:
         restricted_dirs = {d.strip() for d in args.restrict.split(",")}
     elif not args.no_prompt:
-        restrict_prompt = input("\n🔒 Restrict any directories? (yes/no): ").strip().lower()
+        restrict_prompt = input("\n Restrict any directories? (yes/no): ").strip().lower()
         if restrict_prompt in ["yes", "y"]:
             restricted_dirs = prompt_for_restricted_dirs()
 
@@ -545,7 +545,7 @@ def main():
         categories_to_organize = prompt_for_permission(files_by_category, dry_run=args.dry_run)
 
         if not categories_to_organize:
-            print("\n❌ Operation cancelled.")
+            print("\n Operation cancelled.")
             return
 
     # Organize files
