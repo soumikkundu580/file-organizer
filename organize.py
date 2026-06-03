@@ -1,8 +1,19 @@
 #!/usr/bin/env python3
+"""
+File Organizer - Organize files into categories
+Features:
+  - Automatic file categorization
+  - Recursive and non-recursive modes
+  - Dry-run preview mode
+  - Protected directory exclusion
+  - User-friendly CLI with confirmations
+"""
+
 from pathlib import Path
 import shutil
 import argparse
 from collections import defaultdict
+
 
 FILE_TYPES = {
     "Pictures": [
@@ -108,45 +119,37 @@ SYSTEM_PROTECTED_DIRS = {
     "snap", "flatpak"
 }
 
-def get_file_category(extension: str) -> str:
-    extension = extension.lower()
 
+def get_file_category(extension: str) -> str:
+    """Get file category based on extension."""
+    extension = extension.lower()
     for category, extensions in FILE_TYPES.items():
         if extension in extensions:
             return category
-
     return "Others"
 
 
 def format_size(size: int) -> str:
+    """Format file size in human-readable format."""
     units = ["B", "KB", "MB", "GB", "TB"]
-
     for unit in units:
         if size < 1024:
             return f"{size:.2f} {unit}"
-
         size /= 1024
-
     return f"{size:.2f} PB"
 
 
 def get_unique_destination(destination: Path) -> Path:
+    """Get unique destination path if file already exists."""
     if not destination.exists():
         return destination
 
     counter = 1
-
     while True:
-        new_name = (
-            f"{destination.stem}_{counter}"
-            f"{destination.suffix}"
-        )
-
+        new_name = f"{destination.stem}_{counter}{destination.suffix}"
         new_destination = destination.parent / new_name
-
         if not new_destination.exists():
             return new_destination
-
         counter += 1
 
 
@@ -155,7 +158,6 @@ def should_skip(item: Path, organized_folders: set) -> bool:
     if item.name.startswith("."):
         return True
 
-    # Check if any parent directory is in organized folders
     for parent in item.parents:
         if parent.name in organized_folders:
             return True
@@ -167,10 +169,8 @@ def is_protected_directory(path: Path, restricted_dirs: set) -> bool:
     """Check if a directory is protected (system config or user-restricted)."""
     if path.name in SYSTEM_PROTECTED_DIRS:
         return True
-    
     if path.name in restricted_dirs:
         return True
-    
     return False
 
 
@@ -196,14 +196,11 @@ def collect_files_by_category(
             if should_skip(item, organized_folders):
                 continue
 
-            # Check for protected dirs in path
             if any(is_protected_directory(p, restricted_dirs) for p in item.parents):
                 continue
 
             extension = item.suffix.lower()
             category = get_file_category(extension)
-            
-            # Store relative path from target folder
             rel_path = item.relative_to(target_folder)
             files_by_category[category].append((item, str(rel_path)))
 
@@ -213,56 +210,64 @@ def collect_files_by_category(
     return files_by_category
 
 
-def prompt_for_permission(files_by_category: dict) -> set:
+def prompt_for_permission(files_by_category: dict, dry_run: bool = False) -> set:
     """Ask user for permission to organize file types."""
     if not files_by_category:
-        print("\nNo files to organize found.")
+        print("\n⚠️  No files to organize found.")
         return set()
 
-    print("\n" + "="*60)
+    print("\n" + "="*70)
     print("FILE ORGANIZATION SUMMARY")
-    print("="*60)
+    print("="*70)
 
+    total_files = 0
     for category in sorted(files_by_category.keys()):
         files = files_by_category[category]
-        print(f"\n{category}: ({len(files)} files)")
-        for _, rel_path in files[:5]:
-            print(f"  - {rel_path}")
-        if len(files) > 5:
-            print(f"  ... and {len(files) - 5} more files")
+        total_files += len(files)
+        print(f"\n📁 {category}: ({len(files)} files)")
+        for _, rel_path in files[:3]:
+            print(f"   └─ {rel_path}")
+        if len(files) > 3:
+            print(f"   └─ ... and {len(files) - 3} more files")
 
-    print("\n" + "="*60)
+    print("\n" + "="*70)
+    print(f"📊 Total: {total_files} files to organize")
     
+    if dry_run:
+        print("🔍 Mode: DRY-RUN (preview only, no files will be moved)")
+    print("="*70)
+
     while True:
-        response = input("Do you want to organize these files? (yes/no): ").strip().lower()
+        response = input("\n✓ Proceed with organization? (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
             return set(files_by_category.keys())
         elif response in ["no", "n"]:
+            print("❌ Operation cancelled.")
             return set()
         else:
-            print("Please enter 'yes' or 'no'.")
+            print("⚠️  Please enter 'yes' or 'no'.")
 
 
 def prompt_for_restricted_dirs() -> set:
     """Ask user for directories to exclude from organization."""
-    print("\n" + "="*60)
+    print("\n" + "="*70)
     print("RESTRICT DIRECTORIES")
-    print("="*60)
+    print("="*70)
     print("Enter directory names to exclude from organization.")
     print("Separate multiple directories with commas (or press Enter to skip).")
-    print("Example: My Projects, Important Docs, Work")
-    
-    response = input("Restricted directories: ").strip()
-    
+    print("Example: 'My Projects, Important Docs, Work'")
+
+    response = input("\nRestricted directories: ").strip()
+
     if not response:
         return set()
-    
+
     restricted = {d.strip() for d in response.split(",")}
     restricted = {d for d in restricted if d}
-    
+
     if restricted:
-        print(f"\nRestricted directories: {', '.join(restricted)}")
-    
+        print(f"\n✓ Restricted directories: {', '.join(restricted)}")
+
     return restricted
 
 
@@ -275,49 +280,49 @@ def organize_folder(
 ):
     """Organize files into category folders."""
     if not target_folder.exists():
-        print(f"Error: Folder not found: {target_folder}")
+        print(f"\n❌ Error: Folder not found: {target_folder}")
         return
 
     if restricted_dirs is None:
         restricted_dirs = set()
-    
+
     if categories_to_organize is None:
         categories_to_organize = set(FILE_TYPES.keys())
-    
+
     organized_folders = set(FILE_TYPES.keys())
-    
-    print(f"\nScanning: {target_folder}")
+
+    print(f"\n{'🔍 Scanning' if dry_run else '📋 Processing'}: {target_folder}")
+    if recursive:
+        print("🔁 Mode: RECURSIVE (organizing in all subdirectories)")
+    if dry_run:
+        print("🔍 Mode: DRY-RUN (preview only, no files will be moved)")
 
     moved_count = 0
     error_count = 0
+    skipped_count = 0
 
     if recursive:
-        # In recursive mode, organize files in each directory
         items = list(target_folder.rglob("*"))
         items_to_process = []
-        
+
         for item in items:
             try:
                 if not item.is_file():
                     continue
-
                 if should_skip(item, organized_folders):
+                    skipped_count += 1
                     continue
-
-                # Check for protected/restricted dirs in path
                 if any(is_protected_directory(p, restricted_dirs) for p in item.parents):
+                    skipped_count += 1
                     continue
-
                 items_to_process.append(item)
             except Exception:
                 pass
-        
-        # Group items by their parent directory
+
         by_parent = defaultdict(list)
         for item in items_to_process:
             by_parent[item.parent].append(item)
-        
-        # Process each parent directory
+
         for parent_dir, files in by_parent.items():
             for item in files:
                 try:
@@ -325,38 +330,33 @@ def organize_folder(
                     category = get_file_category(extension)
 
                     if category not in categories_to_organize:
+                        skipped_count += 1
                         continue
 
-                    # Create folder in the SAME directory as the file
                     destination_folder = parent_dir / category
-
                     destination_file = destination_folder / item.name
                     destination_file = get_unique_destination(destination_file)
 
                     size = format_size(item.stat().st_size)
 
                     if dry_run:
+                        rel_path = item.relative_to(target_folder)
                         print(
-                            f"[DRY RUN] {item.name} | {category} | "
-                            f"{size} -> {destination_file.relative_to(target_folder)}"
+                            f"[DRY-RUN] {rel_path}\n"
+                            f"          → {category}/ ({size})"
                         )
-                        continue
-
-                    destination_folder.mkdir(exist_ok=True, parents=True)
-                    shutil.move(str(item), str(destination_file))
-
-                    print(
-                        f"MOVED {item.name} | {category} | {size}"
-                    )
-
-                    moved_count += 1
+                        moved_count += 1
+                    else:
+                        destination_folder.mkdir(exist_ok=True, parents=True)
+                        shutil.move(str(item), str(destination_file))
+                        print(f"✓ {item.name} → {category}/ ({size})")
+                        moved_count += 1
 
                 except Exception as e:
-                    print(f"ERROR {item.name} | {str(e)}")
+                    print(f"❌ ERROR: {item.name} | {str(e)}")
                     error_count += 1
 
     else:
-        # Non-recursive: organize files at target folder level only
         items = target_folder.iterdir()
 
         for item in items:
@@ -365,16 +365,18 @@ def organize_folder(
                     continue
 
                 if should_skip(item, organized_folders):
+                    skipped_count += 1
                     continue
 
-                # Check for protected/restricted dirs in path
                 if any(is_protected_directory(p, restricted_dirs) for p in item.parents):
+                    skipped_count += 1
                     continue
 
                 extension = item.suffix.lower()
                 category = get_file_category(extension)
 
                 if category not in categories_to_organize:
+                    skipped_count += 1
                     continue
 
                 destination_folder = target_folder / category
@@ -385,64 +387,96 @@ def organize_folder(
 
                 if dry_run:
                     print(
-                        f"[DRY RUN] {item.name} | {category} | {size}"
+                        f"[DRY-RUN] {item.name}\n"
+                        f"          → {category}/ ({size})"
                     )
-                    continue
-
-                destination_folder.mkdir(exist_ok=True)
-                shutil.move(str(item), str(destination_file))
-
-                print(
-                    f"MOVED {item.name} | {category} | {size}"
-                )
-
-                moved_count += 1
+                    moved_count += 1
+                else:
+                    destination_folder.mkdir(exist_ok=True)
+                    shutil.move(str(item), str(destination_file))
+                    print(f"✓ {item.name} → {category}/ ({size})")
+                    moved_count += 1
 
             except Exception as e:
-                print(f"ERROR {item.name} | {str(e)}")
+                print(f"❌ ERROR: {item.name} | {str(e)}")
                 error_count += 1
 
-    print(f"\nCompleted! Moved {moved_count} files.")
+    print("\n" + "="*70)
+    print("SUMMARY")
+    print("="*70)
+    print(f"✓ {'Would move' if dry_run else 'Moved'}: {moved_count} files")
+    if skipped_count > 0:
+        print(f"⊘ Skipped: {skipped_count} files")
     if error_count > 0:
-        print(f"Errors: {error_count}")
-
+        print(f"❌ Errors: {error_count}")
+    if dry_run:
+        print("\n💡 This was a DRY-RUN. Re-run without --dry-run to actually organize files.")
+    print("="*70)
 
 
 def parse_arguments():
+    """Parse command line arguments."""
     parser = argparse.ArgumentParser(
-        description="File Organizer - Organize files into categories"
+        description="File Organizer - Automatically organize files into categories",
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+        epilog="""
+Examples:
+  # Interactive mode (default)
+  python file_organizer.py
+  
+  # Organize Downloads folder
+  python file_organizer.py --path ~/Downloads
+  
+  # Preview changes without moving files
+  python file_organizer.py --path ~/Downloads --dry-run
+  
+  # Recursively organize all subfolders
+  python file_organizer.py --path ~/Documents --recursive
+  
+  # Preview recursive organization
+  python file_organizer.py --path ~/Documents --recursive --dry-run
+  
+  # Skip confirmation prompts
+  python file_organizer.py --path ~/Downloads --no-prompt
+  
+  # Exclude specific directories
+  python file_organizer.py --path ~/Downloads --restrict "My Projects,Work"
+  
+  # Combine options
+  python file_organizer.py --path ~/Downloads --recursive --dry-run --no-prompt
+        """
     )
 
     parser.add_argument(
         "--path",
         type=str,
         default=None,
-        help="Folder to organize (interactive if not provided)"
+        help="Folder path to organize (interactive if not provided)"
     )
 
     parser.add_argument(
-        "--recursive",
+        "--recursive", "-r",
         action="store_true",
-        help="Scan recursively and organize in each subfolder"
+        help="🔁 Recursively organize files in all subdirectories"
     )
 
     parser.add_argument(
-        "--dry-run",
+        "--dry-run", "-d",
         action="store_true",
-        help="Preview without moving files"
+        help="🔍 Preview changes without moving files"
     )
 
     parser.add_argument(
         "--no-prompt",
         action="store_true",
-        help="Skip permission prompt (organize all file types)"
+        help="⊘ Skip confirmation prompts and organize all file types"
     )
 
     parser.add_argument(
         "--restrict",
         type=str,
         default=None,
-        help="Comma-separated list of directories to exclude"
+        help="Comma-separated list of directories to exclude from organization"
     )
 
     return parser.parse_args()
@@ -450,49 +484,52 @@ def parse_arguments():
 
 def print_header():
     """Print application header."""
-    print("\n" + "="*60)
-    print("FILE ORGANIZER")
-    print("="*60)
+    print("\n" + "="*70)
+    print("📁 FILE ORGANIZER")
+    print("="*70)
 
 
 def get_target_path() -> Path:
     """Get target path from user input."""
     while True:
-        path_input = input("\nEnter folder path to organize (or press Enter for Downloads): ").strip()
-        
+        default_path = Path.home() / "Downloads"
+        prompt = f"\nEnter folder path (or press Enter for {default_path}): "
+        path_input = input(prompt).strip()
+
         if not path_input:
-            target = Path.home() / "Downloads"
+            target = default_path
         else:
             target = Path(path_input).expanduser()
-        
+
         if target.exists() and target.is_dir():
             return target
         else:
-            print(f"Error: Path does not exist or is not a directory: {target}")
+            print(f"❌ Error: Path does not exist or is not a directory: {target}")
 
 
 def main():
+    """Main entry point."""
     print_header()
-    
+
     args = parse_arguments()
 
     # Get target folder
     if args.path:
         target_folder = Path(args.path).expanduser()
         if not target_folder.exists() or not target_folder.is_dir():
-            print(f"Error: Invalid path: {target_folder}")
+            print(f"\n❌ Error: Invalid path: {target_folder}")
             return
     else:
         target_folder = get_target_path()
 
-    print(f"Target folder: {target_folder}")
+    print(f"\n✓ Target folder: {target_folder}")
 
     # Get restricted directories
     restricted_dirs = set()
     if args.restrict:
         restricted_dirs = {d.strip() for d in args.restrict.split(",")}
-    else:
-        restrict_prompt = input("\nDo you want to restrict any directories? (yes/no): ").strip().lower()
+    elif not args.no_prompt:
+        restrict_prompt = input("\n🔒 Restrict any directories? (yes/no): ").strip().lower()
         if restrict_prompt in ["yes", "y"]:
             restricted_dirs = prompt_for_restricted_dirs()
 
@@ -505,15 +542,11 @@ def main():
             set(FILE_TYPES.keys()),
             restricted_dirs
         )
-        categories_to_organize = prompt_for_permission(files_by_category)
-        
-        if not categories_to_organize:
-            print("Operation cancelled.")
-            return
+        categories_to_organize = prompt_for_permission(files_by_category, dry_run=args.dry_run)
 
-    # Show dry-run notice if applicable
-    if args.dry_run:
-        print("\nRUNNING IN DRY-RUN MODE (no files will be moved)")
+        if not categories_to_organize:
+            print("\n❌ Operation cancelled.")
+            return
 
     # Organize files
     organize_folder(
@@ -524,7 +557,7 @@ def main():
         restricted_dirs=restricted_dirs
     )
 
-    print("\n" + "="*60 + "\n")
+    print()
 
 
 if __name__ == "__main__":
