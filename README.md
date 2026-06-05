@@ -47,8 +47,8 @@ A lightweight, fast, and safe command-line tool to organize files into categorie
 #### Method 1: Automatic Setup (Recommended)
 
 ```bash
-git clone <repository-url> ~/file-organizer
-cd ~/file-organizer
+git clone https://github.com/soumikkundu580/file-organizer.git
+cd file-organizer
 bash setup.sh
 ```
 
@@ -151,7 +151,7 @@ pkg install python
 1. **Clone/download repository** into Termux:
 ```bash
 cd ~
-git clone <repository-url> file-organizer
+git clone https://github.com/soumikkundu580/file-organizer.git
 cd file-organizer
 ```
 
