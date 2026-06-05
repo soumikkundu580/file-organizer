@@ -115,10 +115,53 @@ FILE_TYPES = {
 }
 
 SYSTEM_PROTECTED_DIRS = {
-    ".git", ".svn", ".hg", "node_modules", ".npm",
-    ".venv", "venv", ".env", "__pycache__",
-    ".cache", ".local", ".config", ".aws",
-    "snap", "flatpak"
+    # Version control
+    ".git", ".svn", ".hg",
+
+    # Python
+    "__pycache__", ".venv", "venv",
+    ".mypy_cache", ".pytest_cache",
+    ".tox", ".ruff_cache",
+
+    # Node.js
+    "node_modules", ".npm", ".yarn",
+    ".pnpm-store", ".next", ".nuxt",
+
+    # User config/cache
+    ".config", ".cache", ".local",
+    ".mozilla", ".thunderbird",
+
+    # Flatpak/Snap
+    "snap", ".var", "flatpak",
+
+    # System directories
+    "proc", "sys", "dev", "run",
+    "boot", "etc", "lib", "lib64",
+    "bin", "sbin", "usr", "var",
+
+    # Package managers
+    ".cargo", ".rustup",
+    ".gradle", ".m2",
+    ".composer",
+
+    # Cloud/storage
+    ".aws", ".azure",
+    ".gcloud",
+
+    # IDEs
+    ".idea", ".vscode",
+
+    # Containers
+    ".docker",
+
+    # Virtual machines
+    ".vagrant",
+
+    # Environment files
+    ".env",
+
+    # Temporary
+    "tmp", ".tmp"
 }
 
 HISTORY_FILE = ".organize_history"
