@@ -6,12 +6,15 @@ Features:
   - Dry-run mode selection
   - Recursive mode selection
   - Protected directory exclusion
+  - Undo functionality with full history log
 """
 
 from pathlib import Path
 import shutil
 import argparse
 from collections import defaultdict
+import json
+from datetime import datetime
 
 
 FILE_TYPES = {
@@ -117,6 +120,141 @@ SYSTEM_PROTECTED_DIRS = {
     ".cache", ".local", ".config", ".aws",
     "snap", "flatpak"
 }
+
+HISTORY_FILE = ".organize_history"
+
+
+def get_history_file(target_folder: Path) -> Path:
+    """Get path to history file in target folder."""
+    return target_folder / HISTORY_FILE
+
+
+def load_history(target_folder: Path) -> list:
+    """Load organization history from file."""
+    history_file = get_history_file(target_folder)
+    if not history_file.exists():
+        return []
+    try:
+        with open(history_file, 'r') as f:
+            return json.load(f)
+    except (json.JSONDecodeError, IOError):
+        return []
+
+
+def save_history(target_folder: Path, history: list):
+    """Save organization history to file."""
+    history_file = get_history_file(target_folder)
+    try:
+        with open(history_file, 'w') as f:
+            json.dump(history, f, indent=2)
+    except IOError as e:
+        print(f"[WARNING] Could not save history: {e}")
+
+
+def add_history_entry(target_folder: Path, from_path: str, to_path: str, operation: str = "move"):
+    """Add an entry to the history log."""
+    history = load_history(target_folder)
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "operation": operation,
+        "from": from_path,
+        "to": to_path
+    }
+    history.append(entry)
+    save_history(target_folder, history)
+
+
+def display_history(target_folder: Path):
+    """Display the organization history."""
+    history = load_history(target_folder)
+    
+    if not history:
+        print("\n[INFO] No organization history found.")
+        return
+    
+    print("\n" + "="*70)
+    print("ORGANIZATION HISTORY")
+    print("="*70)
+    
+    for idx, entry in enumerate(history, 1):
+        timestamp = entry.get("timestamp", "Unknown")
+        from_file = entry.get("from", "Unknown")
+        to_file = entry.get("to", "Unknown")
+        print(f"\n[{idx}] {timestamp}")
+        print(f"    From: {from_file}")
+        print(f"    To:   {to_file}")
+    
+    print("\n" + "="*70)
+    print(f"Total operations: {len(history)}")
+    print("="*70)
+
+
+def undo_operations(target_folder: Path, count: int = 1) -> int:
+    """Undo the last N organization operations."""
+    history = load_history(target_folder)
+    
+    if not history:
+        print("\n[INFO] No history to undo.")
+        return 0
+    
+    count = min(count, len(history))
+    operations_to_undo = history[-count:]
+    
+    print("\n" + "="*70)
+    print("UNDO OPERATIONS")
+    print("="*70)
+    print(f"Will undo last {count} operation(s):")
+    
+    for idx, entry in enumerate(operations_to_undo, 1):
+        from_file = entry.get("from", "Unknown")
+        to_file = entry.get("to", "Unknown")
+        print(f"  [{idx}] {to_file} -> {from_file}")
+    
+    print("="*70)
+    
+    while True:
+        response = input("\nProceed with undo? (yes/no): ").strip().lower()
+        if response in ["yes", "y"]:
+            break
+        elif response in ["no", "n"]:
+            print("[CANCELLED] Undo cancelled.")
+            return 0
+        else:
+            print("[WARNING] Please enter 'yes' or 'no'.")
+    
+    reverted_count = 0
+    failed_count = 0
+    
+    for entry in operations_to_undo:
+        try:
+            original_path = Path(entry.get("from"))
+            current_path = Path(entry.get("to"))
+            
+            if current_path.exists():
+                original_path.parent.mkdir(parents=True, exist_ok=True)
+                shutil.move(str(current_path), str(original_path))
+                print(f"[OK] Reverted: {current_path.name} -> {original_path.parent.name}/")
+                reverted_count += 1
+            else:
+                print(f"[WARNING] File not found: {current_path}")
+                failed_count += 1
+        except Exception as e:
+            print(f"[ERROR] Failed to revert {entry.get('to')}: {str(e)}")
+            failed_count += 1
+    
+    # Remove reverted operations from history
+    history = history[:-count]
+    save_history(target_folder, history)
+    
+    print("\n" + "="*70)
+    print("UNDO SUMMARY")
+    print("="*70)
+    print(f"[OK] Reverted: {reverted_count} operations")
+    if failed_count > 0:
+        print(f"[ERROR] Failed: {failed_count}")
+    print("="*70)
+    
+    return reverted_count
 
 
 def get_file_category(extension: str) -> str:
@@ -389,6 +527,7 @@ def organize_folder(
                     else:
                         destination_folder.mkdir(exist_ok=True, parents=True)
                         shutil.move(str(item), str(destination_file))
+                        add_history_entry(target_folder, str(item), str(destination_file))
                         print(f"[OK] {item.name} -> {category}/ ({size})")
                         moved_count += 1
 
@@ -434,6 +573,7 @@ def organize_folder(
                 else:
                     destination_folder.mkdir(exist_ok=True)
                     shutil.move(str(item), str(destination_file))
+                    add_history_entry(target_folder, str(item), str(destination_file))
                     print(f"[OK] {item.name} -> {category}/ ({size})")
                     moved_count += 1
 
@@ -473,6 +613,21 @@ def parse_arguments():
         "--skip-menus",
         action="store_true",
         help="Skip interactive menus and use defaults"
+    )
+
+    parser.add_argument(
+        "--history",
+        action="store_true",
+        help="View organization history for a folder"
+    )
+
+    parser.add_argument(
+        "--undo",
+        type=int,
+        nargs='?',
+        const=1,
+        metavar="COUNT",
+        help="Undo the last N organization operations (default: 1)"
     )
 
     return parser.parse_args()
@@ -527,7 +682,7 @@ def main():
 
     args = parse_arguments()
 
-    # Step 1: Get target folder
+    # Step 0: Handle special commands (history and undo)
     if args.path:
         target_folder = Path(args.path).expanduser()
         if not target_folder.exists() or not target_folder.is_dir():
@@ -536,6 +691,18 @@ def main():
     else:
         target_folder = get_target_path()
 
+    # Handle --history flag
+    if args.history:
+        display_history(target_folder)
+        return
+
+    # Handle --undo flag
+    if args.undo is not None:
+        undo_operations(target_folder, args.undo)
+        return
+
+    # Step 1: Get target folder (already done above)
+    
     # Step 2: Ask for dry-run mode
     dry_run = prompt_for_dry_run()
 

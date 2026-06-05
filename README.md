@@ -28,6 +28,7 @@ A lightweight, fast, and safe command-line tool to organize files into categorie
 
 - **Permission-Based**: Shows all files to organize and asks for permission before moving anything
 - **Dry-Run Mode**: Preview what will be moved without actually moving files
+- **Undo Functionality**: Full history log with ability to revert any past operations
 - **Plain CLI Interface**: Clean, simple text output (no colors, no emojis)
 - **Duplicate Handling**: Automatically renames duplicates with counters
 - **Error Handling**: Gracefully handles errors and reports them
@@ -216,7 +217,30 @@ The organizer uses **interactive prompts** to guide you through the options:
 |--------|-------------|
 | `--path PATH` | Folder to organize (interactive prompt if not provided) |
 | `--skip-menus` | Skip initial menu and go straight to configuration prompts |
+| `--history` | View organization history for a folder |
+| `--undo [COUNT]` | Undo the last N organization operations (default: 1) |
 | `--help` | Show help message |
+
+### Undo & History Features
+
+Each folder maintains an organization history log (`.organize_history`) that tracks all file movements.
+
+**View organization history:**
+```bash
+organize --path ~/Downloads --history
+```
+
+**Undo the last operation:**
+```bash
+organize --path ~/Downloads --undo
+```
+
+**Undo the last 5 operations:**
+```bash
+organize --path ~/Downloads --undo 5
+```
+
+When you undo operations, you'll be shown a preview of what will be reverted and asked for confirmation before any files are moved back.
 
 ### Examples
 
