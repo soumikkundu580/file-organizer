@@ -188,51 +188,56 @@ termux-setup-storage
 ### Basic Commands
 
 ```bash
-# Interactive mode (guides you through options)
+# Interactive mode (guides you through all options)
 organize
 
-# Organize Downloads folder recursively
-organize --path ~/Downloads --recursive
+# Organize specific folder (will prompt for options)
+organize --path ~/Downloads
 
-# Organize specific folder non-recursively
-organize --path /path/to/folder
+# Direct execution with Python
+python3 organize.py --path /path/to/folder
 
-# Preview without moving files
-organize --path ~/Downloads --dry-run
-
-# Restrict certain directories from organization
-organize --path ~/Downloads --restrict "Projects,Work Files"
-
-# Skip permission prompt (organize all file types)
-organize --path ~/Downloads --no-prompt
+# Get help
+organize --help
 ```
+
+### How It Works
+
+The organizer uses **interactive prompts** to guide you through the options:
+
+1. **Dry-Run Mode**: Choose whether to preview changes or actually move files
+2. **Recursive Mode**: Choose whether to organize just the folder or all subfolders
+3. **Restrict Directories**: Optionally exclude specific directories
+4. **Permission Confirmation**: Review files to be organized with a file preview
 
 ### Command Options
 
 | Option | Description |
 |--------|-------------|
-| `--path PATH` | Folder to organize (interactive if not provided) |
-| `--recursive` | Scan recursively and organize in each subfolder |
-| `--dry-run` | Preview without moving files |
-| `--no-prompt` | Skip permission prompt (organize all file types) |
-| `--restrict DIRS` | Comma-separated directories to exclude from organization |
+| `--path PATH` | Folder to organize (interactive prompt if not provided) |
+| `--skip-menus` | Skip initial menu and go straight to configuration prompts |
 | `--help` | Show help message |
 
 ### Examples
 
-**Organize Downloads with dry-run:**
+**Organize Downloads folder:**
 ```bash
-organize --path ~/Downloads --dry-run
+organize --path ~/Downloads
+```
+You'll be guided through interactive prompts to choose:
+- Dry-run mode (preview only or actually move)
+- Recursive mode (this folder or all subfolders)
+- Restricted directories (optional)
+
+**Direct Python execution:**
+```bash
+python3 organize.py --path ~/Documents
 ```
 
-**Recursively organize with restricted directories:**
+**Using the installed command:**
 ```bash
-organize --path ~/Documents --recursive --restrict "Important,Backup"
-```
-
-**Organization without prompts:**
-```bash
-organize --path ~/Downloads --recursive --no-prompt
+# After running setup.sh (Linux/Termux) or setup.ps1 (Windows)
+organize
 ```
 
 ---
@@ -393,8 +398,9 @@ To contribute or modify the organizer:
 
 1. Fork or clone the repository
 2. Make your changes to `organize.py`
-3. Test: `python3 organize.py --path /test/folder --dry-run`
-4. Submit improvements
+3. Test: `python3 organize.py --path /test/folder` and follow interactive prompts
+4. For testing without moving files, select "yes" for dry-run mode when prompted
+5. Submit improvements
 
 ---
 
