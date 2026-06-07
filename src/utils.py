@@ -1,170 +1,14 @@
-#!/usr/bin/env python3
 """
-File Organizer - Organize files into categories with interactive CLI
-Features:
-  - Interactive CLI menu for all options
-  - Dry-run mode selection
-  - Recursive mode selection
-  - Protected directory exclusion
-  - Undo functionality with full history log
+File Organizer Utility Functions
+Contains all the core logic for file organization.
 """
 
 from pathlib import Path
 import shutil
-import argparse
 from collections import defaultdict
 import json
 from datetime import datetime
-
-
-FILE_TYPES = {
-    "Pictures": [
-        ".jpg", ".jpeg", ".png", ".gif", ".webp", ".svg",
-        ".bmp", ".tiff", ".ico", ".heic", ".heif",
-        ".raw", ".cr2", ".nef", ".arw", ".dng",
-        ".psd", ".ai", ".eps", ".indd", ".xcf"
-    ],
-
-    "Videos": [
-        ".mp4", ".mkv", ".mov", ".avi", ".webm",
-        ".flv", ".wmv", ".mpeg", ".mpg",
-        ".3gp", ".m4v", ".ts", ".vob", ".ogv"
-    ],
-
-    "Music": [
-        ".mp3", ".wav", ".flac", ".ogg",
-        ".aac", ".m4a", ".wma", ".alac",
-        ".aiff", ".mid", ".midi", ".opus"
-    ],
-
-    "Documents": [
-        ".pdf", ".doc", ".docx", ".txt",
-        ".ppt", ".pptx", ".xls", ".xlsx",
-        ".csv", ".md", ".rtf", ".odt",
-        ".ods", ".odp", ".tex", ".epub",
-        ".pages"
-    ],
-
-    "Archives": [
-        ".zip", ".rar", ".7z", ".tar",
-        ".gz", ".bz2", ".xz", ".iso",
-        ".cab", ".tgz"
-    ],
-
-    "Code": [
-        ".py", ".js", ".ts", ".jsx", ".tsx",
-        ".cpp", ".c", ".h", ".hpp",
-        ".java", ".kt", ".rs", ".go",
-        ".php", ".rb", ".swift",
-        ".cs", ".sh", ".bat", ".ps1",
-        ".html", ".css", ".scss",
-        ".sql", ".json", ".xml",
-        ".yaml", ".yml",
-        ".vue", ".dart", ".lua"
-    ],
-
-    "Databases": [
-        ".db", ".sqlite", ".sqlite3",
-        ".mdb", ".accdb", ".sqlitedb"
-    ],
-
-    "Executables": [
-        ".exe", ".msi", ".apk", ".aab",
-        ".app", ".bin", ".dmg",
-        ".run", ".deb", ".rpm",
-        ".jar"
-    ],
-
-    "Fonts": [
-        ".ttf", ".otf", ".woff", ".woff2"
-    ],
-
-    "3D Models": [
-        ".obj", ".fbx", ".stl",
-        ".blend", ".dae", ".3ds",
-        ".gltf", ".glb",
-        ".step", ".iges"
-    ],
-
-    "Config Files": [
-        ".ini", ".cfg", ".conf",
-        ".env", ".toml",
-        ".properties"
-    ],
-
-    "Logs": [
-        ".log"
-    ],
-
-    "Scripts": [
-        ".command", ".zsh", ".fish"
-    ],
-
-    "Disk Images": [
-        ".iso", ".img", ".dmg"
-    ],
-
-    "Data Science": [
-        ".ipynb", ".parquet",
-        ".feather", ".h5", ".pkl"
-    ],
-
-    "GIS & Maps": [
-        ".shp", ".geojson", ".kml"
-    ]
-}
-
-SYSTEM_PROTECTED_DIRS = {
-    # Version control
-    ".git", ".svn", ".hg",
-
-    # Python
-    "__pycache__", ".venv", "venv",
-    ".mypy_cache", ".pytest_cache",
-    ".tox", ".ruff_cache",
-
-    # Node.js
-    "node_modules", ".npm", ".yarn",
-    ".pnpm-store", ".next", ".nuxt",
-
-    # User config/cache
-    ".config", ".cache", ".local",
-    ".mozilla", ".thunderbird",
-
-    # Flatpak/Snap
-    "snap", ".var", "flatpak",
-
-    # System directories
-    "proc", "sys", "dev", "run",
-    "boot", "etc", "lib", "lib64",
-    "bin", "sbin", "usr", "var",
-
-    # Package managers
-    ".cargo", ".rustup",
-    ".gradle", ".m2",
-    ".composer",
-
-    # Cloud/storage
-    ".aws", ".azure",
-    ".gcloud",
-
-    # IDEs
-    ".idea", ".vscode",
-
-    # Containers
-    ".docker",
-
-    # Virtual machines
-    ".vagrant",
-
-    # Environment files
-    ".env",
-
-    # Temporary
-    "tmp", ".tmp"
-}
-
-HISTORY_FILE = ".organize_history"
+from config import FILE_TYPES, SYSTEM_PROTECTED_DIRS, HISTORY_FILE
 
 
 def get_history_file(target_folder: Path) -> Path:
@@ -210,15 +54,15 @@ def add_history_entry(target_folder: Path, from_path: str, to_path: str, operati
 def display_history(target_folder: Path):
     """Display the organization history."""
     history = load_history(target_folder)
-    
+
     if not history:
         print("\n[INFO] No organization history found.")
         return
-    
+
     print("\n" + "="*70)
     print("ORGANIZATION HISTORY")
     print("="*70)
-    
+
     for idx, entry in enumerate(history, 1):
         timestamp = entry.get("timestamp", "Unknown")
         from_file = entry.get("from", "Unknown")
@@ -226,7 +70,7 @@ def display_history(target_folder: Path):
         print(f"\n[{idx}] {timestamp}")
         print(f"    From: {from_file}")
         print(f"    To:   {to_file}")
-    
+
     print("\n" + "="*70)
     print(f"Total operations: {len(history)}")
     print("="*70)
@@ -235,26 +79,26 @@ def display_history(target_folder: Path):
 def undo_operations(target_folder: Path, count: int = 1) -> int:
     """Undo the last N organization operations."""
     history = load_history(target_folder)
-    
+
     if not history:
         print("\n[INFO] No history to undo.")
         return 0
-    
+
     count = min(count, len(history))
     operations_to_undo = history[-count:]
-    
+
     print("\n" + "="*70)
     print("UNDO OPERATIONS")
     print("="*70)
     print(f"Will undo last {count} operation(s):")
-    
+
     for idx, entry in enumerate(operations_to_undo, 1):
         from_file = entry.get("from", "Unknown")
         to_file = entry.get("to", "Unknown")
         print(f"  [{idx}] {to_file} -> {from_file}")
-    
+
     print("="*70)
-    
+
     while True:
         response = input("\nProceed with undo? (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
@@ -264,15 +108,15 @@ def undo_operations(target_folder: Path, count: int = 1) -> int:
             return 0
         else:
             print("[WARNING] Please enter 'yes' or 'no'.")
-    
+
     reverted_count = 0
     failed_count = 0
-    
+
     for entry in operations_to_undo:
         try:
             original_path = Path(entry.get("from"))
             current_path = Path(entry.get("to"))
-            
+
             if current_path.exists():
                 original_path.parent.mkdir(parents=True, exist_ok=True)
                 shutil.move(str(current_path), str(original_path))
@@ -284,11 +128,11 @@ def undo_operations(target_folder: Path, count: int = 1) -> int:
         except Exception as e:
             print(f"[ERROR] Failed to revert {entry.get('to')}: {str(e)}")
             failed_count += 1
-    
+
     # Remove reverted operations from history
     history = history[:-count]
     save_history(target_folder, history)
-    
+
     print("\n" + "="*70)
     print("UNDO SUMMARY")
     print("="*70)
@@ -296,7 +140,7 @@ def undo_operations(target_folder: Path, count: int = 1) -> int:
     if failed_count > 0:
         print(f"[ERROR] Failed: {failed_count}")
     print("="*70)
-    
+
     return reverted_count
 
 
@@ -412,7 +256,7 @@ def prompt_for_permission(files_by_category: dict, dry_run: bool = False) -> set
 
     print("\n" + "="*70)
     print(f"Total: {total_files} files to organize")
-    
+
     if dry_run:
         print("[DRY-RUN MODE] Preview only, no files will be moved")
     print("="*70)
@@ -458,7 +302,7 @@ def prompt_for_dry_run() -> bool:
     print("="*70)
     print("In dry-run mode, the script will preview changes without")
     print("actually moving any files. This is useful for testing.")
-    
+
     while True:
         response = input("\nRun in dry-run mode? (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
@@ -478,7 +322,7 @@ def prompt_for_recursive() -> bool:
     print("="*70)
     print("Non-recursive: Organize only files in the target folder")
     print("Recursive: Organize files in all subfolders")
-    
+
     while True:
         response = input("\nOrganize recursively (all subfolders)? (yes/no): ").strip().lower()
         if response in ["yes", "y"]:
@@ -636,158 +480,3 @@ def organize_folder(
     if dry_run:
         print("\n[INFO] This was a DRY-RUN. Re-run with dry-run disabled to actually organize files.")
     print("="*70)
-
-
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(
-        description="File Organizer - Automatically organize files into categories",
-        formatter_class=argparse.RawDescriptionHelpFormatter
-    )
-
-    parser.add_argument(
-        "--path",
-        type=str,
-        default=None,
-        help="Folder path to organize (interactive if not provided)"
-    )
-
-    parser.add_argument(
-        "--skip-menus",
-        action="store_true",
-        help="Skip interactive menus and use defaults"
-    )
-
-    parser.add_argument(
-        "--history",
-        action="store_true",
-        help="View organization history for a folder"
-    )
-
-    parser.add_argument(
-        "--undo",
-        type=int,
-        nargs='?',
-        const=1,
-        metavar="COUNT",
-        help="Undo the last N organization operations (default: 1)"
-    )
-
-    return parser.parse_args()
-
-
-def print_header():
-    """Print application header."""
-    print("\n" + "="*70)
-    print("FILE ORGANIZER - INTERACTIVE MODE")
-    print("="*70)
-
-
-def get_target_path() -> Path:
-    """Get target path from user input."""
-    while True:
-        default_path = Path.home() / "Downloads"
-        prompt = f"\nEnter folder path (or press Enter for {default_path}): "
-        path_input = input(prompt).strip()
-
-        if not path_input:
-            target = default_path
-        else:
-            target = Path(path_input).expanduser()
-
-        if target.exists() and target.is_dir():
-            print(f"[OK] Target folder selected: {target}")
-            return target
-        else:
-            print(f"[ERROR] Path does not exist or is not a directory: {target}")
-
-
-def display_configuration(target_folder: Path, dry_run: bool, recursive: bool, restricted_dirs: set):
-    """Display the current configuration."""
-    print("\n" + "="*70)
-    print("CONFIGURATION SUMMARY")
-    print("="*70)
-    print(f"Target Folder: {target_folder}")
-    recursive_status = "ENABLED" if recursive else "DISABLED"
-    dry_run_status = "ENABLED" if dry_run else "DISABLED"
-    print(f"Recursive Mode: {recursive_status}")
-    print(f"Dry-Run Mode: {dry_run_status}")
-    if restricted_dirs:
-        print(f"Restricted Dirs: {', '.join(restricted_dirs)}")
-    else:
-        print(f"Restricted Dirs: None")
-    print("="*70)
-
-
-def main():
-    """Main entry point with interactive CLI."""
-    print_header()
-
-    args = parse_arguments()
-
-    # Step 0: Handle special commands (history and undo)
-    if args.path:
-        target_folder = Path(args.path).expanduser()
-        if not target_folder.exists() or not target_folder.is_dir():
-            print(f"\n[ERROR] Invalid path: {target_folder}")
-            return
-    else:
-        target_folder = get_target_path()
-
-    # Handle --history flag
-    if args.history:
-        display_history(target_folder)
-        return
-
-    # Handle --undo flag
-    if args.undo is not None:
-        undo_operations(target_folder, args.undo)
-        return
-
-    # Step 1: Get target folder (already done above)
-    
-    # Step 2: Ask for dry-run mode
-    dry_run = prompt_for_dry_run()
-
-    # Step 3: Ask for recursive mode
-    recursive = prompt_for_recursive()
-
-    # Step 4: Ask for restricted directories
-    print("\n" + "="*70)
-    restrict_prompt = input("Do you want to restrict any directories? (yes/no): ").strip().lower()
-    restricted_dirs = set()
-    if restrict_prompt in ["yes", "y"]:
-        restricted_dirs = prompt_for_restricted_dirs()
-
-    # Step 5: Show configuration summary
-    display_configuration(target_folder, dry_run, recursive, restricted_dirs)
-
-    # Step 6: Collect and preview files
-    files_by_category = collect_files_by_category(
-        target_folder,
-        recursive,
-        set(FILE_TYPES.keys()),
-        restricted_dirs
-    )
-
-    # Step 7: Ask for final confirmation
-    categories_to_organize = prompt_for_permission(files_by_category, dry_run=dry_run)
-
-    if not categories_to_organize:
-        print("\n[CANCELLED] Operation cancelled.")
-        return
-
-    # Step 8: Organize files
-    organize_folder(
-        target_folder=target_folder,
-        recursive=recursive,
-        dry_run=dry_run,
-        categories_to_organize=categories_to_organize,
-        restricted_dirs=restricted_dirs
-    )
-
-    print()
-
-
-if __name__ == "__main__":
-    main()

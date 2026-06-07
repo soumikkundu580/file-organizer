@@ -6,7 +6,7 @@
 set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-ORGANIZE_PY="$SCRIPT_DIR/organize.py"
+ORGANIZE_PY="$SCRIPT_DIR/src/main.py"
 INSTALL_DIR="$HOME/.local/bin"
 ORGANIZE_CMD="$INSTALL_DIR/organize"
 
@@ -16,7 +16,7 @@ echo "=================================================="
 
 # Check if organize.py exists
 if [ ! -f "$ORGANIZE_PY" ]; then
-    echo "Error: organize.py not found in $SCRIPT_DIR"
+    echo "Error: src/main.py not found in $SCRIPT_DIR"
     exit 1
 fi
 
@@ -36,7 +36,7 @@ if [ ! -d "$INSTALL_DIR" ]; then
 fi
 
 # Make organize.py executable
-echo "Making organize.py executable..."
+echo "Making src/main.py executable..."
 chmod +x "$ORGANIZE_PY"
 
 # Create the organize command wrapper with absolute path

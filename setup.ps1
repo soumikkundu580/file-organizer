@@ -35,13 +35,13 @@ Write-Host ""
 
 # Get the script directory
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
-$organizePy = Join-Path $scriptDir "organize.py"
+$srcDir = Join-Path $scriptDir "src"
 $installDir = Join-Path $env:LOCALAPPDATA "Programs\file-organizer"
 $binDir = Join-Path $env:LOCALAPPDATA "bin"
 
-# Check if organize.py exists
-if (-not (Test-Path $organizePy)) {
-    Write-Host "Error: organize.py not found in $scriptDir"
+# Check if src directory exists
+if (-not (Test-Path $srcDir)) {
+    Write-Host "Error: src directory not found in $scriptDir"
     exit 1
 }
 
@@ -56,16 +56,16 @@ if (-not (Test-Path $binDir)) {
     New-Item -ItemType Directory -Path $binDir -Force | Out-Null
 }
 
-# Copy organize.py to installation directory
-Write-Host "Copying organize.py to installation directory..."
-Copy-Item $organizePy $installDir -Force
+# Copy src directory to installation directory
+Write-Host "Copying src directory to installation directory..."
+Copy-Item $srcDir $installDir -Recurse -Force
 
 # Create batch file wrapper
 $batchFile = Join-Path $binDir "organize.bat"
 Write-Host "Creating organize command batch file..."
 
 $batchContent = "@echo off`n"
-$batchContent += "$pythonExe `"$installDir\organize.py`" %*`n"
+$batchContent += "$pythonExe `"$installDir\src\main.py`" %*`n"
 
 Set-Content -Path $batchFile -Value $batchContent -Encoding ASCII
 
@@ -90,6 +90,7 @@ Write-Host "=================================================="
 Write-Host "Installation Summary"
 Write-Host "=================================================="
 Write-Host "Installation directory: $installDir"
+Write-Host "Source directory: $installDir\src"
 Write-Host "Command location: $batchFile"
 Write-Host "Bin directory added to PATH: $binDir"
 Write-Host ""
@@ -100,7 +101,7 @@ Write-Host "For help, run:"
 Write-Host "  organize --help"
 Write-Host ""
 Write-Host "Or directly with Python:"
-Write-Host "  python organize.py --path C:\Users\YourUsername\Downloads"
+Write-Host "  python $installDir\src\main.py --path C:\Users\YourUsername\Downloads"
 Write-Host "=================================================="
 
 # Refresh PATH for current session

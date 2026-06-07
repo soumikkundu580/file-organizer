@@ -70,7 +70,7 @@ source ~/.bashrc  # or ~/.zshrc or ~/.profile
 cd ~/file-organizer
 
 # Make scripts executable
-chmod +x organize.py
+chmod +x src/main.py
 chmod +x setup.sh
 
 # Run setup
@@ -80,7 +80,7 @@ bash setup.sh
 #### Method 3: Direct Usage (No Installation)
 
 ```bash
-python3 organize.py --path /path/to/folder
+python3 src/main.py --path /path/to/folder
 ```
 
 ---
@@ -121,7 +121,7 @@ cd C:\file-organizer
 
 3. Use directly with Python:
 ```powershell
-python organize.py --path "C:\Users\YourUsername\Downloads"
+python src/main.py --path "C:\Users\YourUsername\Downloads"
 ```
 
 #### Method 3: Create a Batch File Shortcut
@@ -130,7 +130,7 @@ Create a file named `organize.bat` in `C:\Windows\System32\`:
 
 ```batch
 @echo off
-python "%USERPROFILE%\AppData\Local\Programs\file-organizer\organize.py" %*
+python "%USERPROFILE%\AppData\Local\Programs\file-organizer\src\main.py" %*
 ```
 
 ---
@@ -174,7 +174,7 @@ source ~/.bashrc
 #### Direct Usage (No Installation)
 
 ```bash
-python organize.py --path /sdcard/Download
+python src/main.py --path /sdcard/Download
 ```
 
 **Storage Access**: You may need to grant Termux storage permission:
@@ -196,7 +196,7 @@ organize
 organize --path ~/Downloads
 
 # Direct execution with Python
-python3 organize.py --path /path/to/folder
+python3 src/main.py --path /path/to/folder
 
 # Get help
 organize --help
@@ -255,7 +255,7 @@ You'll be guided through interactive prompts to choose:
 
 **Direct Python execution:**
 ```bash
-python3 organize.py --path ~/Documents
+python3 src/main.py --path ~/Documents
 ```
 
 **Using the installed command:**
@@ -321,13 +321,13 @@ Then add the export line to your shell profile permanently.
 
 **Windows:**
 - Ensure Python is installed and in PATH
-- Try using `python organize.py` directly
+- Try using `python src/main.py` directly
 - Check that `C:\Users\YourUsername\AppData\Local\bin` is in System PATH
 
 ### Permission Denied (Linux/Termux)
 
 ```bash
-chmod +x organize.py
+chmod +x src/main.py
 chmod +x setup.sh
 bash setup.sh
 ```
@@ -412,7 +412,7 @@ rm -rf ~/file-organizer
 `.py`, `.js`, `.ts`, `.jsx`, `.tsx`, `.cpp`, `.c`, `.h`, `.hpp`, `.java`, `.kt`, `.rs`, `.go`, `.php`, `.rb`, `.swift`, `.cs`, `.sh`, `.bat`, `.ps1`, `.html`, `.css`, `.scss`, `.sql`, `.json`, `.xml`, `.yaml`, `.yml`, `.vue`, `.dart`, `.lua`
 
 ### And more...
-See the complete list in [organize.py](organize.py) under `FILE_TYPES` dictionary.
+See the complete list in [src/config.py](src/config.py) under `FILE_TYPES` dictionary.
 
 ---
 
@@ -421,8 +421,8 @@ See the complete list in [organize.py](organize.py) under `FILE_TYPES` dictionar
 To contribute or modify the organizer:
 
 1. Fork or clone the repository
-2. Make your changes to `organize.py`
-3. Test: `python3 organize.py --path /test/folder` and follow interactive prompts
+2. Make your changes to the src/ directory (config.py, utils.py, main.py)
+3. Test: `python3 src/main.py --path /test/folder` and follow interactive prompts
 4. For testing without moving files, select "yes" for dry-run mode when prompted
 5. Submit improvements
 
